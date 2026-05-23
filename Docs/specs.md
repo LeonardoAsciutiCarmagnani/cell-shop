@@ -1,59 +1,24 @@
-# 1. Vitrine de Produtos
+# Especificação Técnica de API (SDD Simplificado) — CaseCellShop
 
-## `GET /products`
-
-### Contexto
-
-Retorna a lista de produtos disponíveis para venda com baixa latência, utilizando cache para otimizar performance.
-Essa rota consome dados de um cache (Redis), desacoplando a leitura do ERP.
-
-### Regras de negócio
-
-- A listagem deve ser retornada prioritariamente a partir do cache (Redis)
-- O sistema deve tolerar inconsistência eventual dos dados
-- O ERP é a fonte de verdade, porém não deve ser acessado diretamente em alta escala
-- O sistema deve continuar operando mesmo em caso de indisponibilidade temporária do ERP
-- O cache deve possuir TTL como mecanismo de segurança, não como estratégia de atualização
-
-### Fluxo
-
-1. Requisição recebida
-2. Consulta ao Redis
-3. Caso sucesso (cache hit) → retorna dados do cache
-4. Caso falha (miss)
-- Tenta adquirir lock de reconstrução de cache
-  - Caso lock adquirido:
-    - Consulta ERP
-    - Atualiza cache
-    - Retorna dados
-  - Caso lock não adquirido:
-    - Retorna erro controlado
-
-### Estratégia de Cache
-
-- Tipo: Cache-aside
-- Armazenamento: Redis
-- TTL: 5 minutos (fallback de expiração)
-- Atualização: assíncrona (background refresh)
-
-## Mecanismo de atualização de cache
-
-- Um processo assíncrono é responsável por manter o cache aquecido
-- A atualização ocorre de forma periódica
-- O cache pode ser atualizado antes do TTL expirar
-- Apenas uma instância por vez pode reconstruir o cache
-
-## Estratégia de resiliência
-
-- Em caso de indisponibilidade do ERP:
- - O sistema deve continuar servindo dados do cache, mesmo que desatualizados, por um período controlado
- - Após esse limite, deve retornar erro controlado
+Este documento apresenta a especificação técnica dos endpoints da API desenvolvida para resolver os principais gargalos de negócio da CaseCellShop. O design prioriza a simplicidade e a eficiência através de simulações e processamentos em memória (*In-Memory Data Structures*), dispensando dependências de infraestrutura complexa externa para o escopo deste projeto, sem abrir mão do tratamento rigoroso de erros e consistência.
 
 ---
 
-### Responses
+## 1. Vitrine de Produtos
 
-#### **200 - OK**
+### `GET /products`
+
+#### Contexto e Resolução de Problema
+Resolve o **Problema 1 (Performance da Vitrine)**. Para evitar requisições síncronas e pesadas ao banco de dados do ERP a cada acesso à página inicial, a API expõe os dados diretamente de uma estrutura otimizada mantida em memória local. Isso garante tempo de resposta imediato e estabilidade para suportar picos de acessos.
+
+#### Regras de Negócio
+- A listagem deve retornar instantaneamente a partir do estado local da aplicação.
+- O estoque exibido reflete em tempo real as reservas feitas pelas intenções de checkout ativas.
+
+#### Responses
+
+##### **200 OK**
+Retorna a lista completa de produtos disponíveis em catálogo.
 
 ```json
 [
@@ -62,276 +27,114 @@ Essa rota consome dados de um cache (Redis), desacoplando a leitura do ERP.
     "name": "Capinha Silicone Apple iPhone 15 - Preta",
     "price": 59.90,
     "stock": 42
+  },
+  {
+    "sku": "CAP-GALAS24-TRP",
+    "name": "Capinha Antishock Samsung Galaxy S24 - Transparente",
+    "price": 49.90,
+    "stock": 15
   }
 ]
 ```
 
----
+##### **503 Service Unavailable**
 
-#### **503 - Service Unavailable**
-
-Quando não há dados disponíveis em cache e não foi possível obter dados do ERP.
+Retornado caso ocorra alguma falha na leitura da estrutura de dados global da vitrine.
 
 ```json
 {
-  "error": {
-    "code": "CATALOG_UNVAILABLE",
-    "message": "Não foi possível carregar os produtos. Por favor, tente novamente em instantes."
+  "error":{
+    "code": "CATALOG_UNAVAILABLE",
+    "message": "Não foi possível carregar os produtos. Por favor, tente novamente mais tarde."
   }
 }
 ```
 
 ---
 
-# 2. Checkout
+## 2. Processamento do Checkout
 
-## `POST /checkout`
+### `POST /checkout`
 
-### Contexto
+#### Contexto e Resolução de Problema
+Resolve de forma concorrente o **Problema 2 (Furo de Estoque)** e o **Problema 3 (Timeout no Checkout devido à lentidão do ERP)**.
+1. **Furo de Estoque:** É mitigado através de uma validação e mutação de estado síncrona e imediata na memória assim que a requisição é recebida. Se houver estoque disponível, ele é reservado na hora.
+2. **Timeout:** É resolvido através do **desacoplamento assíncrono**. A API cria o pedido com status `PENDING`, responde imediatamente ao cliente e delega a comunicação real com o ERP para um processo em background.
 
-Recebe uma intenção de compra e inicia o processamento assíncrono do pedido, garantindo consistência e evitando duplicidade de processamento.
+#### Regras de Negócio & Validações
+- O payload deve conter dados válidos de cliente (`customerId`), SKU e a quantidade do item deve ser de no mínimo 1.
+- **Validação Crítica de Estoque:** Caso a quantidade solicitada seja maior que a disponível no estoque em memória, a requisição é rejeitada instantaneamente.
+- **Idempotência Simplificada:** A API rastreia em memória os identificadores de requisições de sucesso para evitar reprocessamentos indesejados de um mesmo clique.
 
-### Headers
-
-- `Idempotency-Key` *(string, UUID, obrigatório)*  
-Chave única para evitar dupla cobrança.
-
-### Regras de negócio
-
-- O customerId deve ser válido
-- Todos os SKUs devem existir no catálogo
-- A quantidade de cada item deve ser maior que 0
-- O estoque deve ser reservado de forma atômica
-- Não deve ser possível criar múltiplos pedidos com a mesma `Idempotency-Key`
-- O pedido só será considerado finalizado após confirmação do ERP
-
-### Garantias do sistema (Idempotência)
-
-- A `Idempotency-Key` deve ser gerada no momento da tentativa de checkout e reutilizada em eventuais retries da mesma operação
-- Todas as `Idempotency-Key` devem ser armazenadas com TTL de 24 horas.
-- Requisições com mesma key e mesmo payload retornam a mesma resposta
-- Requisições com mesma key e payload diferente retornam erro `409 - Conflict`
-- Nenhuma duplicidade de processamento deve ocorrer
-
-### Fluxo
-
-1. Recebe requisição
-2. Valida schema do request
-3. Verifica idempotência
-4. Valida existência dos SKUs
-5. Realiza reserva atômica de estoque via operação transacional
-6. Calcula o valor total e cria pedido com status `PENDING`
-7. Publica mensagem na fila de processamento
-8. Retorna resposta ao cliente
-
-### Request Body
-
+#### Request Body
 ```json
 {
-  "customerId": "string (uuid)",
-  "items": [
-    {
-      "sku": "string",
-      "quantity": "integer (min: 1)"
-    }
-  ]
+  "customerId": "usr_94a2b1",
+  "sku": "CAP-IPH15-PRT",
+  "quantity": 2
 }
 ```
 
-### Responses
+#### Responses
 
-#### **202 - Accepted**
-
-O pedido passou pelas validações básicas, o estoque local foi reservado com sucesso e a tarefa foi encaminhada para a fila de processamento.
-
-*Nota de Idempotência: Se o cliente enviar novamente a mesma `Idempotency-Key` com o mesmo payload, a API retornará o status `202`  com `orderId`*
-*gerado na primeira requisição, sem novo enfileiramento* 
-
+##### **202 Accepted**
+Pedido recebido e processamento em background iniciado.
 ```json
 {
-  "orderId": "string",
+  "orderId": "ord_881923",
   "status": "PENDING",
-  "statusUrl": "/orders/{orderId}"
+  "message": "Seu pedido foi recebido e está sendo processado."
+}
+```
+
+##### **400 Bad Request**
+Dados inválidos informados no corpo da requisição.
+```json
+{
+  "error": "A quantidade solicitada deve ser igual ou superior a 1."
+}
+```
+
+##### **422 Unprocessable Entity**
+Falha em regra de negócio devido a produto não localizado ou falta de estoque.
+```json
+{
+  "error": "Estoque insuficiente para o produto informado. Estoque atual: 1."
 }
 ```
 
 ---
 
-#### **400 - Bad Request**
+## 3. Consulta de Status do Pedido (Polling)
 
-Os dados enviados não respeitam o schema esperado.
+### `GET /orders/:id`
 
+#### Contexto e Resolução de Problema
+Como o processamento do checkout ocorre de forma assíncrona em background (simulado via rotinas temporizadas na aplicação), a interface do usuário utilizará este endpoint para consultar o andamento do pedido até que ele chegue a um estado final.
+
+#### Ciclo de Vida do Pedido
+- **`PENDING`:** O processo em background ainda está simulando a comunicação e faturamento junto ao ERP. O front-end deve manter um estado visual de carregamento (*loading*).
+- **`CONFIRMED`:** A integração obteve sucesso. O front-end deve direcionar o cliente para a tela de sucesso da compra.
+- **`FAILED`:** O processamento falhou. A interface exibe o erro e o sistema **devolve automaticamente** a quantidade de estoque que havia sido reservada de volta ao catálogo global.
+
+#### Responses
+
+##### **200 OK**
+Retorna o estado atualizado do pedido pesquisado.
 ```json
 {
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "O valor do campo x precisa ser maior que y."
-  }
-}
-```
-
----
-
-#### **409 - Conflict**
-
-Existe uma `Idempotency-Key` salva com outro payload
-
-```json
-{
-  "error": {
-    "code": "IDEMPOTENCY_KEY_ALREADY_EXISTS",
-    "message": "Já existe outro pedido com a mesma chave idempotente."
-  }
-}
-```
-
----
-
-#### **422 - Unprocessable Entity**
-
-A reserva atômica no banco local falhou porque a quantidade solicitada é maior que a disponível.
-
-```json
-{
-  "error": {
-    "code": "OUT_OF_STOCK",
-    "message": "Estoque insuficiente para o SKU: XYZ-123."
-  }
-}
-```
-
----
-
-#### **422 - Unprocessable Entity**
-
-O SKU informado não existe no banco de dados.
-
-```json
-{
-  "error": {
-    "code": "PRODUCT_NOT_FOUND",
-    "message": "O produto informado não pôde ser localizado em nosso catálogo."
-  }
-}
-```
-
----
-
-#### **500 - Internal Server Error**
-
-Erro inesperado ao salvar o pedido ou tentar adicioná-lo à fila interna.
-
-```json
-{
-  "error": {
-    "code": "INTERNAL_ERROR",
-    "message": "Houve uma falha interna ao tentar iniciar seu checkout. Nenhuma cobrança foi realizada."
-  }
-}
-```
-
-# 3. Status do pedido
-
-## `GET /orders/:id`
-
-### Contexto
-
-Permite consultar o estado atual do pedido. O front-end deve utilizar essa rota para realizar polling até a finalização do processamento.
-
-### Estados do pedido
-
-- `PENDING` → processamento em andamento
-- `CONFIRMED` → pedido finalizado com sucesso
-- `FAILED` → falha definitiva no processamento
-
-### Transições de estado
-
-- `PENDING` → `CONFIRMED`
-- `PENDING` → `FAILED`
-
-### Regras de negócio
-
-- O pedido deve existir
-- Enquanto estiver em `PENDING`, o cliente deve continuar realizando polling
-- O sistema deve informar intervalo mínimo entre requisições via header `Retry-After`
-- Após falha definitiva, o pedido não deve ser reprocessado automaticamente
-- Em caso de falha, a saída em estoque deverá ser revertida
-
-### Fluxo
-
-1. Cliente consulta `/orders/:id`
-2. Sistema verifica status do pedido
-3. Retorna estado atual
-4. Caso `PENDING`, inclui header `Retry-After`
-5. Cliente repete processo até estado final
-
-### Estratégia de Retry (Worker)
-
-- Tentativas de integração com ERP: até 5 vezes
-- Backoff: exponencial
-- Após limite → status `FAILED`
-
-### Responses
-
-#### **200 - OK (Processando)**
-
-**O worker está tentando realizar a comunicação ou realizando retentativas, o front-end deve continuar exibindo Loading**
-
-*Importante: A presença do header `Retry-After` indica o tempo mínimo de espera para o próximo polling.*
-
-Header: Retry-After: 5
-
-```json
-{
-  "orderId": "ord_xyz",
+  "orderId": "ord_881923",
   "status": "PENDING",
-  "total": 119.80,
-  "errorMessage": null
+  "sku": "CAP-IPH15-PRT",
+  "quantity": 2,
+  "updatedAt": "2026-05-23T20:55:00Z"
 }
 ```
 
----
-
-#### **200 - OK (Sucesso)**
-
-**O pedido foi enviado com sucesso para o ERP e o faturamento foi confirmado, o front-end deve redirecionar o usuário**
-
+##### **404 Not Found**
+O código do pedido informado não existe no histórico em memória.
 ```json
 {
-  "orderId": "ord_xyz",
-  "status": "CONFIRMED",
-  "total": 119.80,
-  "errorMessage": null
+  "error": "O código de pedido informado não existe no sistema."
 }
 ```
-
----
-
-#### **200 - OK (Falha final)**
-
-**A API do ERP rejeitou o pedido ou permaneceu inoperante após o limite de retentativas.**
-
-```json
-{
-  "orderId": "ord_xyz",
-  "status": "FAILED",
-  "total": 119.80,
-  "errorMessage": "Não foi possível processar o pedido após múltiplas tentativas."
-}
-```
-
----
-
-#### **404 - Not found**
-
-**O ID do pedido informado não existe na base de dados**
-
-```json
-{
-"error": {
-    "code": "ORDER_NOT_FOUND",
-    "message": "O pedido informado não foi encontrado em nosso sistema."
-}
-}
-```
-
