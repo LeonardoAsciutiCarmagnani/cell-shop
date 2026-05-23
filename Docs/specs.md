@@ -5,29 +5,49 @@
 ### Contexto
 
 Retorna a lista de produtos disponíveis para venda com baixa latência, utilizando cache para otimizar performance.
-Essa rota consome dados de um cache local (**Redis**) atualizado periodicamente.
+Essa rota consome dados de um cache (Redis), desacoplando a leitura do ERP.
 
 ### Regras de negócio
 
 - A listagem deve ser retornada prioritariamente a partir do cache (Redis)
-- O cache deve possuir TTL de 5 minutos
-- A busca no banco de dados só ocorre como mecanismo de contingência se o Redis estiver indisponível.
-- Haverá um mecanismo de alimentação de cache
-- O sistema aceita eventual inconsistência dos dados dentro da janela de cache
+- O sistema deve tolerar inconsistência eventual dos dados
+- O ERP é a fonte de verdade, porém não deve ser acessado diretamente em alta escala
+- O sistema deve continuar operando mesmo em caso de indisponibilidade temporária do ERP
+- O cache deve possuir TTL como mecanismo de segurança, não como estratégia de atualização
 
 ### Fluxo
 
 1. Requisição recebida
 2. Consulta ao Redis
 3. Caso sucesso (cache hit) → retorna dados do cache
-4. Caso falha (miss) → consulta banco de dados diretamente
-5. Retorna produtos ao cliente
+4. Caso falha (miss)
+- Tenta adquirir lock de reconstrução de cache
+  - Caso lock adquirido:
+    - Consulta ERP
+    - Atualiza cache
+    - Retorna dados
+  - Caso lock não adquirido:
+    - Retorna erro controlado
 
 ### Estratégia de Cache
 
 - Tipo: Cache-aside
-- TTL: 5 minutos
-- Atualização: assíncrona
+- Armazenamento: Redis
+- TTL: 5 minutos (fallback de expiração)
+- Atualização: assíncrona (background refresh)
+
+## Mecanismo de atualização de cache
+
+- Um processo assíncrono é responsável por manter o cache aquecido
+- A atualização ocorre de forma periódica
+- O cache pode ser atualizado antes do TTL expirar
+- Apenas uma instância por vez pode reconstruir o cache
+
+## Estratégia de resiliência
+
+- Em caso de indisponibilidade do ERP:
+ - O sistema deve continuar servindo dados do cache, mesmo que desatualizados, por um período controlado
+ - Após esse limite, deve retornar erro controlado
 
 ---
 
@@ -48,12 +68,14 @@ Essa rota consome dados de um cache local (**Redis**) atualizado periodicamente.
 
 ---
 
-#### **500 - Internal Server Error**
+#### **503 - Service Unavailable**
+
+Quando não há dados disponíveis em cache e não foi possível obter dados do ERP.
 
 ```json
 {
   "error": {
-    "code": "INTERNAL_ERROR",
+    "code": "CATALOG_UNVAILABLE",
     "message": "Não foi possível carregar os produtos. Por favor, tente novamente em instantes."
   }
 }
