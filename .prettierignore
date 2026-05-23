@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+coverage
+.pnpm-store
+.env
+.env.*
+!.env.example
+pnpm-lock.yaml
+Docs/
+docs/
