@@ -40,4 +40,4 @@ pnpm dev
 - Não há controle de concorrência real, pois não é o objetivo da aplicação
 - A vitrine não possui paginação para reduzir complexidade no front-end
 - O carrinho foi mantido simples (somente visualização) para evitar lógica desnecessária
-- - A API aplica DIP para reduzir acoplamento entre regras de negócio e infraestrutura
+- A API aplica DIP para reduzir acoplamento entre regras de negócio e infraestrutura
