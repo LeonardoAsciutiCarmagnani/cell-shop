@@ -1,6 +1,7 @@
 # Cell Shop
 
 Monorepo da aplicação Cell Shop, com serviços backend e frontend para execução em ambiente local de desenvolvimento.
+A solução desenvolvida visa principalmente: simplicidade e aderência aos requisitos.
 
 ## Pré-requisitos
 
@@ -8,6 +9,12 @@ Antes de iniciar, garanta que você tenha instalado:
 
 - `Node.js` **20+**
 - `pnpm` **9+** (recomendado: `pnpm@10.11.0`)
+
+## Faça o clone do projeto
+
+```bash
+- git clone https://github.com/LeonardoAsciutiCarmagnani/cell-shop.git
+```
 
 ## Primeira execução (setup inicial)
 
