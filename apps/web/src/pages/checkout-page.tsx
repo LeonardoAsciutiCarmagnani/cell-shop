@@ -48,7 +48,8 @@ export function CheckoutPage() {
       clear();
       setShowSuccess(true);
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Erro inesperado. Tente novamente.';
+      const message =
+        error instanceof ApiError ? error.message : 'Erro inesperado. Tente novamente.';
       toast.error('Não foi possível finalizar a compra', {
         description: message,
       });
@@ -163,11 +164,6 @@ export function CheckoutPage() {
           )}
         </Button>
       </div>
-      {isPending && (
-        <p className="mt-3 text-sm text-muted-foreground" role="status" aria-live="polite">
-          Processando pedido...
-        </p>
-      )}
     </section>
   );
 }
