@@ -1,33 +1,36 @@
-import { useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
+import { AppHeader } from '@/components/app-header';
+import { Toaster } from '@/components/ui/sonner';
+import { CheckoutPage } from '@/pages/checkout-page';
+import { ShowcasePage } from '@/pages/showcase-page';
 
-type HealthResponse = {
-  status: string;
-};
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 export function App() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('API indisponível');
-        }
-
-        return response.json() as Promise<HealthResponse>;
-      })
-      .then(setHealth)
-      .catch(() => setError('Não foi possível conectar à API'));
-  }, []);
-
   return (
-    <main className="container">
-      <h1>TOTVS Desafio Fullstack</h1>
-      <p>Vite + React + TypeScript</p>
-
-      {health && <p className="status ok">API: {health.status}</p>}
-      {error && <p className="status error">{error}</p>}
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <AppHeader />
+        <main className="flex-1">
+          <Routes>
+            <Route path="/" element={<ShowcasePage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+        <footer className="border-t border-border/60 py-4 text-center text-xs text-muted-foreground">
+          CellShop &middot; Mini-tarefa de Código
+        </footer>
+      </Router>
+      <Toaster />
+    </QueryClientProvider>
   );
 }
