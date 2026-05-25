@@ -33,3 +33,11 @@ pnpm dev
 - `pnpm lint:fix`: corrige automaticamente problemas de lint quando possível.
 - `pnpm format`: formata os arquivos com Prettier.
 - `pnpm format:check`: valida formatação sem alterar arquivos.
+
+# Trade-offs e decisões
+
+- O estoque é mantido em memória para simplificar a implementação e focar no fluxo de checkout
+- Não há controle de concorrência real, pois não é o objetivo da aplicação
+- A vitrine não possui paginação para reduzir complexidade no front-end
+- O carrinho foi mantido simples (somente visualização) para evitar lógica desnecessária
+- - A API aplica DIP para reduzir acoplamento entre regras de negócio e infraestrutura
