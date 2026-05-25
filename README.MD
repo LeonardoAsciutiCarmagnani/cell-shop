@@ -13,7 +13,7 @@ Antes de iniciar, garanta que você tenha instalado:
 ## Faça o clone do projeto
 
 ```bash
-- git clone https://github.com/LeonardoAsciutiCarmagnani/cell-shop.git
+git clone https://github.com/LeonardoAsciutiCarmagnani/cell-shop.git
 ```
 
 ## Primeira execução (setup inicial)
