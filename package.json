@@ -3,29 +3,22 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Monorepo TOTVS Desafio Fullstack Jr",
+  "description": "Monorepo para Mini-tarefa de código",
   "packageManager": "pnpm@10.11.0",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "setup": "node scripts/setup-env.mjs",
+    "setup:initialize": "pnpm install",
+    "setup:env": "node scripts/setup-env.mjs",
     "dev": "pnpm -r --parallel dev",
-    "dev:api": "pnpm --filter @totvs/api dev",
-    "dev:web": "pnpm --filter @totvs/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "infra:up": "pnpm setup && docker compose up -d --wait",
-    "infra:down": "docker compose down",
-    "infra:reset": "docker compose down -v && docker compose up -d --wait",
-    "infra:logs": "docker compose logs -f",
-    "infra:ps": "docker compose ps",
-    "preinstall": "node scripts/setup-env.mjs"
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

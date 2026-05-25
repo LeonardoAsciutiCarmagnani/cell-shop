@@ -12,7 +12,6 @@ if (!existsSync(envExample)) {
 }
 
 if (existsSync(envFile)) {
-  console.log('.env já existe.');
   process.exit(0);
 }
 

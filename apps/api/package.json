@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc --allowImportingTsExtensions --rewriteRelativeImportExtensions",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit --allowImportingTsExtensions",
+    "test": "tsx --test \"src/http/__tests__/*.spec.ts\""
   },
   "dependencies": {
+    "@casecellshop/shared": "workspace:*",
+    "@scalar/express-api-reference": "^0.9.19",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "@casecellshop/shared": "workspace:*"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
