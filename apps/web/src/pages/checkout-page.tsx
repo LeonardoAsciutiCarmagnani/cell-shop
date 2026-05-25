@@ -157,7 +157,7 @@ export function CheckoutPage() {
           {isPending ? (
             <>
               <Loader2 className="animate-spin" />
-              Processando pedido...
+              Enviando pedido...
             </>
           ) : (
             'Finalizar compra'
