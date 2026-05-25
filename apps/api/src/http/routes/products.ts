@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { ProductsController } from '../controllers/products.js';
-import { MockProductsRepository } from '../repositories/products.js';
-import { ReadAllProductsUseCase } from '../use-cases/read-all-products.js';
+import { ProductsController } from '../controllers/products.ts';
+import { MockProductsRepository } from '../repositories/products.ts';
+import { ReadAllProductsUseCase } from '../use-cases/read-all-products.ts';
 
 const router = Router();
 const productsRepository = new MockProductsRepository();

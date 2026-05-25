@@ -1,5 +1,5 @@
-import type { Product } from '../../schemas/product.js';
-import type { ProductsRepository } from '../repositories/products.js';
+import type { Product } from '../../schemas/product.ts';
+import type { ProductsRepository } from '../repositories/products.ts';
 
 export interface ReadAllProductsUseCaseContract {
   execute(): Promise<Product[]>;

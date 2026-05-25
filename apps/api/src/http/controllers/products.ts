@@ -1,25 +1,24 @@
 import type { Request, Response } from 'express';
-import type { ReadAllProductsUseCaseContract } from '../use-cases/read-all-products.js';
+import { ApiResponse } from '@casecellshop/shared/src/utils/responses.ts';
+import type { ReadAllProductsUseCaseContract } from '../use-cases/read-all-products.ts';
 
 export class ProductsController {
   constructor(private readonly readAllProductsUseCase: ReadAllProductsUseCaseContract) {}
 
-  public readAll = async (req: Request, res: Response) => {
+  public readAll = async (_req: Request, res: Response) => {
     try {
-      console.log('[GET] /PRODUCTS - Bucando produtos da vitrine...', req.body);
-
       const products = await this.readAllProductsUseCase.execute();
 
-      console.log(`[GET] /PRODUCTS - Produtos encontrados: ${products.length}`);
-      return res.status(200).json(products);
-    } catch (error) {
-      console.error('[GET] /PRODUCTS - Erro:', error);
-      return res.status(503).json({
-        error: {
-          code: 'CATALOG_UNAVAILABLE',
-          message: 'Não foi possível carregar os produtos. Por favor, tente novamente mais tarde.',
-        },
-      });
+      return res.status(200).json(ApiResponse.ok(products));
+    } catch {
+      return res
+        .status(503)
+        .json(
+          ApiResponse.serviceUnavailable(
+            'CATALOG_UNAVAILABLE',
+            'Não foi possível carregar os produtos da vitrine. Por favor, tente novamente mais tarde.',
+          ),
+        );
     }
   };
 }
